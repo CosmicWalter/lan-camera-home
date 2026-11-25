@@ -1,4 +1,9 @@
 /dist/
 /lan-camera-home
 /lan-camera-home.exe
+/build-native/
+/vendor-sdk/
+/sdk-motion*.json
+/camera-motion*.json
+/*.cookies
 .DS_Store

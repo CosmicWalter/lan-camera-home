@@ -63,11 +63,20 @@ func randomBytes() []byte {
 }
 
 func main() {
-	if len(os.Args) > 1 && os.Args[1] == "onvif-events" {
-		if err := runONVIFEvents(os.Args[2:]); err != nil && !errors.Is(err, flag.ErrHelp) {
-			log.Fatal(err)
+	if len(os.Args) > 1 {
+		var run func([]string) error
+		switch os.Args[1] {
+		case "onvif-events":
+			run = runONVIFEvents
+		case "sdk-events":
+			run = runSDKEvents
 		}
-		return
+		if run != nil {
+			if err := run(os.Args[2:]); err != nil && !errors.Is(err, flag.ErrHelp) {
+				log.Fatal(err)
+			}
+			return
+		}
 	}
 	port := flag.Int("port", 8787, "本机桥接端口")
 	upstream := flag.String("moonfire", "127.0.0.1:8080", "Moonfire 本机地址，或 unix:/path/to/socket")
