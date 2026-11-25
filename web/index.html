@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http://127.0.0.1:*; media-src 'self' blob: http://127.0.0.1:*; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="家庭局域网摄像头的开源控制台，基于 Moonfire NVR。">
+  <title>家镜 · 家庭摄像头控制台</title>
+  <link rel="icon" href="./icon.png">
+  <link rel="stylesheet" href="./style.css">
+  <script type="module" src="./app.js"></script>
+</head>
+<body>
+  <a class="skip" href="#main">跳到内容</a>
+  <aside class="sidebar">
+    <a class="identity" href="#live"><span class="logomark" data-icon="lens"></span><span><strong>家镜</strong><small>家庭摄像头控制台</small></span></a>
+    <nav aria-label="控制台">
+      <p class="nav-caption">工作台</p>
+      <a href="#live" data-view="live"><span data-icon="camera"></span>实时预览</a>
+      <a href="#recordings" data-view="recordings"><span data-icon="archive"></span>录像回放</a>
+      <a href="#alerts" data-view="alerts"><span data-icon="bell"></span>告警事件</a>
+    </nav>
+    <div class="sidebar-tail">
+      <button class="device-panel" type="button" data-connect>
+        <span class="device-icon" data-icon="server"></span>
+        <span><strong>本地连接</strong><small id="local-state">等待连接</small></span>
+        <span data-icon="settings"></span>
+      </button>
+      <a class="source-link" href="https://github.com/CosmicWalter/lan-camera-home"><span data-icon="code"></span>开源项目</a>
+    </div>
+  </aside>
+  <div class="workspace">
+    <header class="topbar">
+      <div class="breadcrumb"><span>工作台</span><span class="crumb-slash">/</span><b id="breadcrumb">实时预览</b></div>
+      <div class="status" id="session-status" role="status"><span class="dot"></span><span id="session-label">演示模式</span></div>
+    </header>
+    <main id="main" tabindex="-1">
+      <section id="live-page" aria-labelledby="live-heading">
+        <div class="page-title">
+          <div><h1 id="live-heading">实时预览</h1><p id="live-subtitle">在一个页面查看家里的摄像头。</p></div>
+          <button type="button" class="primary" data-connect><span data-icon="link"></span><span data-connect-label>连接本地设备</span></button>
+        </div>
+        <div class="metrics" aria-label="摄像头概况">
+          <div class="metric"><span class="metric-icon mint" data-icon="camera"></span><div><small>摄像头</small><strong id="camera-count">4</strong></div></div>
+          <div class="metric"><span class="metric-icon coral" data-icon="record"></span><div><small>已启用录像</small><strong id="record-count">3</strong></div></div>
+          <div class="metric"><span class="metric-icon lilac" data-icon="bell"></span><div><small id="alert-metric-label">近 24 小时告警</small><strong id="alert-count">—</strong></div></div>
+        </div>
+        <div class="overview">
+          <section class="camera-area" aria-labelledby="camera-heading">
+            <div class="section-title">
+              <h2 id="camera-heading">摄像头</h2>
+              <div class="camera-actions">
+                <button id="reload-cameras" class="icon-button" type="button" aria-label="刷新摄像头" title="刷新摄像头" hidden><span data-icon="refresh"></span></button>
+                <div class="switcher" aria-label="预览布局"><button type="button" data-layout="grid" aria-label="网格布局" title="网格布局" aria-pressed="true"><span data-icon="grid"></span></button><button type="button" data-layout="single" aria-label="单列布局" title="单列布局" aria-pressed="false"><span data-icon="square"></span></button></div>
+              </div>
+            </div>
+            <div class="camera-grid" id="camera-grid"></div>
+          </section>
+          <aside class="event-panel" aria-labelledby="event-heading">
+            <div class="section-title"><h2 id="event-heading">最近告警</h2><a href="#alerts">查看全部</a></div>
+            <div id="recent-alerts"></div>
+          </aside>
+        </div>
+      </section>
+      <section id="recordings-page" hidden aria-labelledby="recordings-heading">
+        <div class="page-title"><div><h1 id="recordings-heading">录像回放</h1><p>选一台摄像头和日期，回看或下载录像。</p></div></div>
+        <form id="record-form" class="filters">
+          <label>摄像头<select id="record-camera" required></select></label>
+          <label>码流<select id="record-stream" required></select></label>
+          <label>日期<input id="record-date" type="date" required></label>
+          <button class="primary" type="submit"><span data-icon="search"></span>查询录像</button>
+          <small id="record-zone"></small>
+        </form>
+        <div id="record-result" class="table-panel" aria-live="polite"></div>
+      </section>
+      <section id="alerts-page" hidden aria-labelledby="alerts-heading">
+        <div class="page-title"><div><h1 id="alerts-heading">告警事件</h1><p>查看近 24 小时内收到的动作信号。</p></div><button id="reload-alerts" class="secondary" type="button"><span data-icon="refresh"></span>刷新</button></div>
+        <div id="all-alerts" class="table-panel" aria-live="polite"></div>
+      </section>
+    </main>
+  </div>
+  <dialog id="setup-dialog" aria-labelledby="setup-heading">
+    <div class="dialog-top"><span class="metric-icon mint" data-icon="link"></span><button type="button" class="icon-button" data-close aria-label="关闭"><span data-icon="close"></span></button></div>
+    <h2 id="setup-heading">连接本地设备</h2>
+    <p>在运行浏览器的电脑上启动家镜桥接。Moonfire 可以运行在同一台电脑，或通过 SSH 转发连接家里的录像服务器。</p>
+    <ol class="setup-steps">
+      <li><a href="https://github.com/CosmicWalter/lan-camera-home/releases/latest" target="_blank" rel="noopener">下载桥接程序</a>并启动。<a href="https://github.com/CosmicWalter/lan-camera-home#快速开始" target="_blank" rel="noopener">查看安装步骤</a></li>
+      <li>输入终端显示的配对码。浏览器提示访问本地网络时，选择允许。</li>
+    </ol>
+    <form id="connect-form">
+      <label>桥接端口<input id="connect-port" type="number" inputmode="numeric" min="1" max="65535" value="8787" required></label>
+      <label>配对码<input id="connect-token" type="password" required autocomplete="off" spellcheck="false" placeholder="粘贴终端里的配对码"></label>
+      <p id="connect-error" role="status" class="form-error"></p>
+      <div class="dialog-actions"><button type="button" class="secondary" id="disconnect" hidden>断开连接</button><button type="submit" class="primary"><span data-icon="link"></span>连接</button></div>
+    </form>
+  </dialog>
+  <dialog id="player-dialog" class="player-dialog" aria-labelledby="player-heading">
+    <div class="dialog-top"><h2 id="player-heading"></h2><button type="button" class="icon-button" data-close aria-label="关闭播放器"><span data-icon="close"></span></button></div>
+    <video id="record-player" controls playsinline crossorigin="anonymous"></video>
+    <p id="player-message" role="status"></p>
+  </dialog>
+  <div class="toast" id="toast" role="status" hidden></div>
+</body>
+</html>
