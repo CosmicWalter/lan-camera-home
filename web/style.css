@@ -161,6 +161,12 @@ dialog .form-error { color: var(--coral); font-size: 14px; margin: 0; }
 .profile-item label { min-width: 0; flex: 1 1 280px; }
 .profile-item input { width: 100%; }
 #profile-panel > a { display: inline-block; margin-top: 13px; }
+#camera-write-panel { margin-top: 14px; }
+#camera-write-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; align-items: end; }
+#camera-write-form button { justify-self: start; }
+.storage-picker { display: flex; align-items: end; gap: 7px; }
+.storage-picker label { flex: 1; min-width: 0; }
+.profile-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 @media (max-width: 1150px) {
   .overview { grid-template-columns: 1fr; }
   #recent-alerts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -177,6 +183,7 @@ dialog .form-error { color: var(--coral); font-size: 14px; margin: 0; }
 }
 @media (max-width: 620px) {
   .device-setup-grid { grid-template-columns: 1fr; }
+  #camera-write-form { grid-template-columns: 1fr; }
   .sidebar { position: sticky; top: 0; width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 8px 12px 0; border-right: 0; border-bottom: 1px solid var(--line); }
   .identity { margin: 0 auto 7px 0; }
   .identity strong { font-size: 19px; }

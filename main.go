@@ -48,6 +48,7 @@ type bridge struct {
 	client              *http.Client
 	ws                  websocket.Dialer
 	static              http.Handler
+	setup               *cameraSetup
 }
 
 func token() string {
@@ -84,6 +85,8 @@ func main() {
 	upstream := flag.String("moonfire", "127.0.0.1:8080", "Moonfire 本机地址，或 unix:/path/to/socket")
 	cookieFile := flag.String("cookie-file", "", "可选，Moonfire CLI 生成的 curl cookie jar")
 	pairingFile := flag.String("pairing-file", "", "可选，保存配对码的私有文件，供服务重启后复用")
+	setupDir := flag.String("setup-db", "", "Moonfire 本机数据库目录，用于停止服务期间配置摄像头")
+	moonfireBin := flag.String("moonfire-bin", "moonfire-nvr", "Moonfire 命令，用于 -setup-db")
 	flag.Parse()
 
 	if *port < 1 || *port > 65535 {
@@ -91,6 +94,10 @@ func main() {
 	}
 	address := net.JoinHostPort("127.0.0.1", strconv.Itoa(*port))
 	b, err := newBridge(address, *upstream, *cookieFile)
+	if err != nil {
+		log.Fatal(err)
+	}
+	b.setup, err = openCameraSetup(*setupDir, *moonfireBin)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -220,6 +227,10 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if origin != "" {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
+	}
+	if strings.HasPrefix(r.URL.Path, "/api/setup/") {
+		b.serveCameraSetup(w, r, origin, localOrigin)
+		return
 	}
 	if strings.HasPrefix(r.URL.Path, "/api/onvif/") {
 		b.onvif(w, r, origin, localOrigin)

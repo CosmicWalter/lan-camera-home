@@ -59,6 +59,20 @@ ssh -N -o ExitOnForwardFailure -L 127.0.0.1:8080:/var/lib/moonfire-nvr/jiajing.s
 
 自动搜索通过 IPv4 WS-Discovery 在同一网段发送组播。访客 Wi‑Fi、虚拟网络或防火墙可能过滤组播。账号和密码从本机控制台提交给本机桥接，并用于访问选中的设备。复制的 RTSP 地址会移除 URL 中的用户名和密码。
 
+### 在本机网页添加录像配置
+
+Moonfire v0.7.33 和家镜桥接 v0.5.0 同机运行时，可以使用快捷配置。先通过 Moonfire 的「Directories and retention」配置好录像目录。使用与 Moonfire 数据库匹配的 `moonfire-nvr` 命令，确保 `sqlite3` 已安装，再给桥接加上 `-setup-db`。原有的 `-moonfire`、`-cookie-file` 等连接参数照常使用。
+
+```sh
+./lan-camera-home -setup-db /var/lib/moonfire-nvr/db
+```
+
+1. 在本机控制台点「添加摄像头」并配对。读取 ONVIF 码流后可直接设为主码流或子码流，也可以手动填写本地 RTSP 地址。
+2. 短暂停止 Moonfire 录像服务，保持桥接运行。在「保存到 Moonfire」读取录像目录，填写摄像头名称、RTSP 凭据和每路录像容量，然后点击「添加并启用录像」。
+3. 重新启动 Moonfire，再点击「Moonfire 已启动，查看预览」。
+
+快捷配置使用 Moonfire CLI 的数据库锁，只新增摄像头和码流。已存在的同名摄像头继续使用原配置。跨设备部署可继续使用 Moonfire 自带的配置工具。
+
 ### 接收告警
 
 - 告警页面读取 Moonfire Signals，将进入移动状态的事件显示为告警。已配对的实时预览和告警页每 30 秒刷新。可用 `onvif-events` 从 ONVIF PullPoint 订阅设备移动事件，或继续使用已有的 Moonfire Signals 事件源。 [ONVIF 告警接入步骤](docs/onvif-alerts.md)

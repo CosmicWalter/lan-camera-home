@@ -122,9 +122,28 @@
           <section id="profile-panel" class="device-section" hidden aria-labelledby="profile-heading">
             <h2 id="profile-heading">可用码流</h2>
             <p id="onvif-model"></p>
-            <p>建议先选 H.264。复制 RTSP 地址，在 Moonfire 的摄像头设置中填写，并在对应码流启用录像。</p>
+            <p>建议选择 H.264 码流。</p>
             <div id="profile-results"></div>
             <a href="https://github.com/CosmicWalter/lan-camera-home#添加-onvif-摄像头" target="_blank" rel="noopener">查看 Moonfire 配置步骤</a>
+          </section>
+          <section id="camera-write-panel" class="device-section" hidden aria-labelledby="camera-write-heading">
+            <h2 id="camera-write-heading">保存到 Moonfire</h2>
+            <p>添加时请停止 Moonfire 录像服务，保持本机桥接运行。保存后重新启动 Moonfire。</p>
+            <form id="camera-write-form">
+              <label>摄像头名称<input id="setup-camera-name" required maxlength="48" placeholder="例如 前门"></label>
+              <label>主码流 RTSP<input id="setup-main" required maxlength="2048" placeholder="rtsp://192.168.1.50/live" spellcheck="false"></label>
+              <label>子码流 RTSP（可选）<input id="setup-sub" maxlength="2048" spellcheck="false"></label>
+              <label>RTSP 用户名<input id="setup-user" maxlength="256" autocomplete="off" spellcheck="false"></label>
+              <label>RTSP 密码<input id="setup-password" type="password" maxlength="512" autocomplete="off"></label>
+              <div class="storage-picker">
+                <label>录像目录<select id="setup-storage" required disabled><option value="">先读取目录</option></select></label>
+                <button id="setup-folders" class="secondary" type="button"><span data-icon="refresh"></span>读取目录</button>
+              </div>
+              <label>每路录像容量（GiB）<input id="setup-retention" type="number" min="1" max="65536" value="5" required></label>
+              <button id="setup-save" class="primary" type="submit" disabled><span data-icon="add"></span>添加并启用录像</button>
+            </form>
+            <p id="camera-write-status" role="status"></p>
+            <button id="setup-preview" class="secondary" type="button" hidden>Moonfire 已启动，查看预览</button>
           </section>
         </div>
       </section>

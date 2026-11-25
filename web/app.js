@@ -45,6 +45,7 @@ let recordRequest;
 let connectRequest;
 let scanRequest;
 let profileRequest;
+let cameraWriteRequest;
 let toastTimer;
 
 function icon(name) {
@@ -125,7 +126,7 @@ function cameraPath(uuid, stream, resource) {
 function updateConnection() {
   const connected = Boolean(session);
   $("session-status").classList.toggle("connected", connected);
-  $("session-label").textContent = connected ? "本地已连接" : "演示模式";
+  $("session-label").textContent = connected ? (snapshot?.setupOffline ? "已配对 · 录像服务待启动" : "本地已连接") : "演示模式";
   $("local-state").textContent = connected ? "桥接已连接" : "等待连接";
   $("reload-cameras").hidden = !connected;
   $("disconnect").hidden = !connected;
@@ -259,7 +260,7 @@ function renderCameras() {
     liveCards.set(camera.uuid, card);
     grid.append(card.card);
   }
-  if (!liveCards.size) empty(grid, "Moonfire 还没有配置摄像头。添加 RTSP 码流后，点击刷新。");
+  if (!liveCards.size) empty(grid, snapshot?.setupOffline ? "启动 Moonfire 后，点击刷新获取摄像头。" : "Moonfire 还没有配置摄像头。添加摄像头后，点击刷新。");
   if (session && page === "live") [...liveCards.values()].filter(card => card.canPlay).slice(0, 4).forEach(card => card.play());
 }
 
@@ -512,6 +513,14 @@ function clearDeviceSetup() {
   $("device-results").replaceChildren();
   $("profile-results").replaceChildren();
   $("profile-panel").hidden = true;
+  cameraWriteRequest?.abort();
+  $("camera-write-form").reset();
+  $("camera-write-status").textContent = "";
+  $("setup-preview").hidden = true;
+  $("setup-storage").replaceChildren(new Option("先读取目录", ""));
+  $("setup-storage").disabled = true;
+  $("setup-folders").disabled = false;
+  $("setup-save").disabled = true;
 }
 
 function updateDevices() {
@@ -519,6 +528,7 @@ function updateDevices() {
   $("devices-remote").hidden = localDashboard;
   $("devices-unpaired").hidden = !localDashboard || paired;
   $("devices-local").hidden = !paired;
+  $("camera-write-panel").hidden = !paired || !session.setupEnabled;
   $("devices-local-link").href = (session?.base || "http://127.0.0.1:8787") + "/#devices";
 }
 
@@ -601,7 +611,20 @@ async function loadProfiles(event) {
             toast("地址已选中，可手动复制");
           }
         }, true);
-        row.append(label, copy);
+        row.append(label);
+        if (active.setupEnabled) {
+          const actions = node("div", "profile-actions");
+          actions.append(copy);
+          for (const [label, field] of [["设为主码流", "setup-main"], ["设为子码流", "setup-sub"]]) {
+            actions.append(button(label, "add", () => {
+              $(field).value = profile.rtsp;
+              $(field).focus();
+            }, true));
+          }
+          row.append(actions);
+        } else {
+          row.append(copy);
+        }
       }
       $("profile-results").append(row);
     });
@@ -611,6 +634,67 @@ async function loadProfiles(event) {
   } finally {
     control.disabled = false;
   }
+}
+
+async function writeCameraRequest(path, payload, handle) {
+  const active = session;
+  if (!localDashboard || active?.base !== location.origin || !active.setupEnabled) return;
+  cameraWriteRequest?.abort();
+  const run = new AbortController();
+  cameraWriteRequest = run;
+  const status = $("camera-write-status");
+  $("setup-folders").disabled = true;
+  $("setup-save").disabled = true;
+  status.textContent = "正在处理…";
+  try {
+    const response = await request(active, "/api/setup/" + path, { signal: run.signal, payload });
+    const value = await response.json();
+    if (!run.signal.aborted) handle(value, status);
+  } catch (error) {
+    if (!run.signal.aborted) status.textContent = error.message;
+  } finally {
+    if (run === cameraWriteRequest && !run.signal.aborted) {
+      $("setup-folders").disabled = false;
+      $("setup-save").disabled = $("setup-storage").disabled;
+    }
+  }
+}
+
+function loadSetupFolders() {
+  const select = $("setup-storage");
+  $("setup-save").disabled = true;
+  select.disabled = true;
+  select.replaceChildren(new Option("请选择录像目录", ""));
+  void writeCameraRequest("storage", {}, (items, status) => {
+    if (!items.length) {
+      status.textContent = "Moonfire 还没有录像目录。请先在 Moonfire 配置工具中添加。";
+      return;
+    }
+    select.append(...items.map(item => new Option(item.name + "（" + item.id + "）", item.id)));
+    if (items.length === 1) select.value = items[0].id;
+    select.disabled = false;
+    $("setup-save").disabled = false;
+    status.textContent = "";
+  });
+}
+
+function saveSetupCamera(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const password = $("setup-password");
+  const payload = {
+    name: $("setup-camera-name").value, main: $("setup-main").value, sub: $("setup-sub").value,
+    username: $("setup-user").value, password: password.value,
+    storageId: Number($("setup-storage").value), retainGiB: Number($("setup-retention").value),
+  };
+  password.value = "";
+  void writeCameraRequest("cameras", payload, (_, status) => {
+    const storage = $("setup-storage").value;
+    form.reset();
+    $("setup-storage").value = storage;
+    status.textContent = "已保存并启用录像。启动 Moonfire 后即可预览。";
+    $("setup-preview").hidden = false;
+  });
 }
 
 function setSession(active, inventory) {
@@ -638,6 +722,7 @@ async function refreshInventory() {
     updateConnection();
     if (page === "live") renderCameras();
     void loadAlerts();
+    return true;
   } catch (error) {
     toast(error.message);
   } finally {
@@ -676,11 +761,20 @@ $("connect-form").addEventListener("submit", async event => {
   $("connect-error").textContent = "正在连接…";
   submit.disabled = true;
   try {
-    const inventory = await data(active, "/api/", AbortSignal.any([run.signal, AbortSignal.timeout(20000)]));
+    const signal = AbortSignal.any([run.signal, AbortSignal.timeout(20000)]);
+    if (localDashboard && active.base === location.origin) {
+      const setup = await request(active, "/api/setup/info", { signal, payload: {} })
+        .then(response => response.json()).catch(() => undefined);
+      active.setupEnabled = setup?.enabled === true;
+    }
+    const inventory = await data(active, "/api/", signal).catch(error => {
+      if (page !== "devices" || !active.setupEnabled || signal.aborted) throw error;
+      return { cameras: [], signals: [], setupOffline: true };
+    });
     if (!run.signal.aborted) {
       setSession(active, inventory);
       $("setup-dialog").close();
-      toast("本地设备已连接");
+      toast(inventory.setupOffline ? "本机桥接已配对" : "本地设备已连接");
     }
   } catch (error) {
     if (!run.signal.aborted) $("connect-error").textContent = error.name === "TimeoutError" ? "连接超时，请检查桥接和本地网络权限。" : error.message;
@@ -697,6 +791,17 @@ $("reload-cameras").addEventListener("click", () => void refreshInventory());
 $("reload-alerts").addEventListener("click", () => void loadAlerts());
 $("scan-devices").addEventListener("click", scanDevices);
 $("onvif-form").addEventListener("submit", loadProfiles);
+$("setup-folders").addEventListener("click", loadSetupFolders);
+$("camera-write-form").addEventListener("submit", saveSetupCamera);
+$("setup-preview").addEventListener("click", async event => {
+  const control = event.currentTarget;
+  control.disabled = true;
+  try {
+    if (await refreshInventory()) location.hash = "#live";
+  } finally {
+    control.disabled = false;
+  }
+});
 $("record-camera").addEventListener("change", () => fillStreams(false));
 $("record-form").addEventListener("submit", event => {
   event.preventDefault();
