@@ -20,6 +20,8 @@ const icons = {
   pause: '<path d="M9 5v14m6-14v14"/>',
   download: '<path d="M12 3v12m-4-4 4 4 4-4M4 16v4h16v-4"/>',
   motion: '<path d="M3 12h4l3-7 4 14 3-7h4"/>',
+  add: '<path d="M12 5v14M5 12h14"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M15 5H6a2 2 0 0 0-2 2v9"/>',
 };
 
 const $ = id => document.getElementById(id);
@@ -32,7 +34,8 @@ const demoCameras = [
   ["patio", "后院", "室外"],
   ["garage", "车道", "室外"],
 ].map(([uuid, shortName, description], index) => ({ uuid, shortName, description, streams: { main: { record: index < 3 } } }));
-const knownViews = { live: "实时预览", recordings: "录像回放", alerts: "告警事件" };
+const knownViews = { live: "实时预览", recordings: "录像回放", alerts: "告警事件", devices: "添加摄像头" };
+const localDashboard = location.protocol === "http:" && location.hostname === "127.0.0.1";
 const streamNames = { main: "主码流", sub: "子码流", ext: "扩展码流" };
 let page = "live";
 let session;
@@ -40,6 +43,8 @@ let snapshot;
 let alertRequest;
 let recordRequest;
 let connectRequest;
+let scanRequest;
+let profileRequest;
 let toastTimer;
 
 function icon(name) {
@@ -84,11 +89,14 @@ function cameras() {
   return snapshot?.cameras ?? demoCameras;
 }
 
-async function request(active, path, { signal } = {}) {
+async function request(active, path, { signal, payload } = {}) {
   let response;
   try {
+    const auth = { Authorization: "Bearer " + active.token };
     response = await fetch(active.base + path, {
-      headers: { Authorization: "Bearer " + active.token },
+      method: payload === undefined ? "GET" : "POST",
+      headers: payload === undefined ? auth : { ...auth, "Content-Type": "application/json" },
+      body: payload === undefined ? undefined : JSON.stringify(payload),
       cache: "no-store",
       credentials: "omit",
       redirect: "error",
@@ -490,12 +498,125 @@ function changeView() {
   else closeLive();
   if (page === "recordings") void loadRecordings();
   else recordRequest?.abort();
-  if (page !== "recordings") void loadAlerts();
+  if (page === "live" || page === "alerts") void loadAlerts();
+  if (page === "devices") updateDevices();
+  else clearDeviceSetup();
+}
+
+function clearDeviceSetup() {
+  scanRequest?.abort();
+  profileRequest?.abort();
+  $("onvif-form").reset();
+  $("scan-status").textContent = "";
+  $("onvif-status").textContent = "";
+  $("device-results").replaceChildren();
+  $("profile-results").replaceChildren();
+  $("profile-panel").hidden = true;
+}
+
+function updateDevices() {
+  const paired = localDashboard && session?.base === location.origin;
+  $("devices-remote").hidden = localDashboard;
+  $("devices-unpaired").hidden = !localDashboard || paired;
+  $("devices-local").hidden = !paired;
+  $("devices-local-link").href = (session?.base || "http://127.0.0.1:8787") + "/#devices";
+}
+
+async function scanDevices(event) {
+  const active = session;
+  if (!localDashboard || active?.base !== location.origin) return;
+  const control = event.currentTarget;
+  const run = new AbortController();
+  scanRequest = run;
+  const status = $("scan-status");
+  const list = $("device-results");
+  status.textContent = "正在搜索局域网…";
+  list.replaceChildren();
+  control.disabled = true;
+  try {
+    const response = await request(active, "/api/onvif/discover", { signal: run.signal, payload: {} });
+    const cameras = await response.json();
+    if (run.signal.aborted) return;
+    status.textContent = cameras.length ? "找到 " + cameras.length + " 台设备。选择一台以填写地址。" :
+      "这次没有收到设备响应。可以直接填写设备地址。";
+    for (const camera of cameras) {
+      const row = node("div", "discovered-item");
+      const name = camera.name ? camera.name + " · " + camera.endpoint : camera.endpoint;
+      row.append(button(name, "camera", () => {
+        $("onvif-endpoint").value = camera.endpoint;
+        $("onvif-password").value = "";
+        $("onvif-username").focus();
+      }, true));
+      list.append(row);
+    }
+  } catch (error) {
+    if (!run.signal.aborted) status.textContent = error.message;
+  } finally {
+    control.disabled = false;
+  }
+}
+
+async function loadProfiles(event) {
+  event.preventDefault();
+  const active = session;
+  if (!localDashboard || active?.base !== location.origin) return;
+  const run = new AbortController();
+  profileRequest = run;
+  const status = $("onvif-status");
+  const control = event.submitter;
+  const password = $("onvif-password");
+  const payload = { endpoint: $("onvif-endpoint").value, username: $("onvif-username").value, password: password.value };
+  password.value = "";
+  $("profile-panel").hidden = true;
+  $("profile-results").replaceChildren();
+  status.textContent = "正在读取设备码流…";
+  control.disabled = true;
+  try {
+    const response = await request(active, "/api/onvif/profiles", { signal: run.signal, payload });
+    const inventory = await response.json();
+    if (run.signal.aborted) return;
+    status.textContent = "";
+    $("onvif-model").textContent = [inventory.manufacturer, inventory.model].filter(Boolean).join(" ");
+    inventory.profiles.forEach((profile, index) => {
+      const label = node("label");
+      const resolution = profile.width && profile.height ? profile.width + " × " + profile.height : "";
+      label.textContent = [profile.name || ("码流 " + (index + 1)), profile.encoding, resolution].filter(Boolean).join(" · ");
+      const row = node("div", "profile-item");
+      if (!profile.rtsp) {
+        label.append(node("span", "", "设备未返回 RTSP 地址"));
+        row.append(label);
+      } else {
+        const input = node("input");
+        input.readOnly = true;
+        input.value = profile.rtsp;
+        input.spellcheck = false;
+        input.addEventListener("focus", () => input.select());
+        label.append(input);
+        const copy = button("复制地址", "copy", async () => {
+          try {
+            await navigator.clipboard.writeText(input.value);
+            toast("已复制 RTSP 地址");
+          } catch {
+            input.focus();
+            toast("地址已选中，可手动复制");
+          }
+        }, true);
+        row.append(label, copy);
+      }
+      $("profile-results").append(row);
+    });
+    $("profile-panel").hidden = false;
+  } catch (error) {
+    if (!run.signal.aborted) status.textContent = error.message;
+  } finally {
+    control.disabled = false;
+  }
 }
 
 function setSession(active, inventory) {
   recordRequest?.abort();
   alertRequest?.abort();
+  if (session !== active) clearDeviceSetup();
   session = active;
   snapshot = inventory;
   $("record-date").value = today();
@@ -549,7 +670,7 @@ $("record-player").addEventListener("error", () => {
 $("connect-form").addEventListener("submit", async event => {
   event.preventDefault();
   const submit = event.submitter;
-  const active = { token: $("connect-token").value.trim(), base: "http://127.0.0.1:" + Number($("connect-port").value) };
+  const active = { token: $("connect-token").value.trim(), base: new URL("http://127.0.0.1:" + Number($("connect-port").value)).origin };
   const run = new AbortController();
   connectRequest = run;
   $("connect-error").textContent = "正在连接…";
@@ -574,6 +695,8 @@ $("disconnect").addEventListener("click", () => {
 });
 $("reload-cameras").addEventListener("click", () => void refreshInventory());
 $("reload-alerts").addEventListener("click", () => void loadAlerts());
+$("scan-devices").addEventListener("click", scanDevices);
+$("onvif-form").addEventListener("submit", loadProfiles);
 $("record-camera").addEventListener("change", () => fillStreams(false));
 $("record-form").addEventListener("submit", event => {
   event.preventDefault();
@@ -581,7 +704,7 @@ $("record-form").addEventListener("submit", event => {
 });
 window.addEventListener("hashchange", changeView);
 window.setInterval(() => {
-  if (session && page !== "recordings" && !document.hidden) void loadAlerts();
+  if (session && (page === "live" || page === "alerts") && !document.hidden) void loadAlerts();
 }, 30000);
 if (location.hostname === "127.0.0.1" && location.port) $("connect-port").value = location.port;
 decorate(document);

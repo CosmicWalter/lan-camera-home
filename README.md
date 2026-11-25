@@ -50,10 +50,19 @@ ssh -N -o ExitOnForwardFailure -L 127.0.0.1:8080:/var/lib/moonfire-nvr/jiajing.s
 
 保持 SSH 会话开启，在另一个终端启动桥接。已使用鉴权 TCP 端口的部署，也可以将转发目标换成 `127.0.0.1:8080` 并使用前面的专用 cookie 方式。
 
-### 告警与品牌接入
+### 添加 ONVIF 摄像头
 
-- 告警页面读取 Moonfire Signals，将进入移动状态的信号显示为告警。连接本地设备后，实时预览和告警页面每 30 秒刷新一次；需已有事件源向 Moonfire 写入信号。 [Moonfire Signals API](https://github.com/scottlamb/moonfire-nvr/blob/v0.7.33/ref/api.md#get-apisignals)
-- 海康威视、大华、宇视的设备可按型号手动配置 RTSP。ONVIF 自动发现、设备事件订阅及品牌 SDK 接入在后续版本中实现。
+1. 在摄像头设置中启用 ONVIF，按设备提示创建 ONVIF 用户。使用家镜桥接 v0.2.0 或更新版本。
+2. 在 GitHub Pages 点「添加摄像头」，打开本机设备页并配对。点「搜索摄像头」，选择发现的设备。跨网段或设备禁用发现时，可直接输入可达的本地 IP 地址或完整的 ONVIF 设备服务地址。
+3. 输入设备的 ONVIF 账号并点「读取码流」。复制希望录像的 RTSP 地址，优先选 H.264。家镜支持 ONVIF Media 和 Media2 码流配置。
+4. 在 Moonfire 的 `config` 中通过「Cameras and streams」添加摄像头。粘贴 RTSP 地址，再单独填写设备的 RTSP 用户名和密码。为所选码流启用「record」并分配存储目录与容量。启动 Moonfire，在家镜实时预览中刷新摄像头。
+
+自动搜索通过 IPv4 WS-Discovery 在同一网段发送组播。访客 Wi‑Fi、虚拟网络或防火墙可能过滤组播。账号和密码从本机控制台提交给本机桥接，并用于访问选中的设备。复制的 RTSP 地址会移除 URL 中的用户名和密码。
+
+### 接收告警
+
+- 告警页面读取 Moonfire Signals，将进入移动状态的事件显示为告警。已配对的实时预览和告警页每 30 秒刷新。可用 `onvif-events` 从 ONVIF PullPoint 订阅设备移动事件，或继续使用已有的 Moonfire Signals 事件源。 [ONVIF 告警接入步骤](docs/onvif-alerts.md)
+- 海康威视、大华、宇视设备可通过已启用的 ONVIF 或手动配置的 RTSP 接入。品牌原生 SDK 接入在后续版本中实现。
 
 ## 浏览器和本地访问
 

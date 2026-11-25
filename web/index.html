@@ -52,6 +52,7 @@
             <div class="section-title">
               <h2 id="camera-heading">摄像头</h2>
               <div class="camera-actions">
+                <a id="add-camera" class="secondary" href="#devices"><span data-icon="add"></span>添加摄像头</a>
                 <button id="reload-cameras" class="icon-button" type="button" aria-label="刷新摄像头" title="刷新摄像头" hidden><span data-icon="refresh"></span></button>
                 <div class="switcher" aria-label="预览布局"><button type="button" data-layout="grid" aria-label="网格布局" title="网格布局" aria-pressed="true"><span data-icon="grid"></span></button><button type="button" data-layout="single" aria-label="单列布局" title="单列布局" aria-pressed="false"><span data-icon="square"></span></button></div>
               </div>
@@ -78,6 +79,51 @@
       <section id="alerts-page" hidden aria-labelledby="alerts-heading">
         <div class="page-title"><div><h1 id="alerts-heading">告警事件</h1><p>查看近 24 小时内收到的动作信号。</p></div><button id="reload-alerts" class="secondary" type="button"><span data-icon="refresh"></span>刷新</button></div>
         <div id="all-alerts" class="table-panel" aria-live="polite"></div>
+      </section>
+      <section id="devices-page" hidden aria-labelledby="devices-heading">
+        <div class="page-title">
+          <div><h1 id="devices-heading">添加摄像头</h1><p>从 ONVIF 设备读取可用码流，再把所选地址添加到 Moonfire。</p></div>
+          <a class="secondary" href="#live">回到预览</a>
+        </div>
+        <div id="devices-remote" class="device-section" hidden>
+          <h2>打开本机控制台</h2>
+          <p>在本机页面里搜索摄像头并输入 ONVIF 账号。</p>
+          <a id="devices-local-link" class="primary" href="http://127.0.0.1:8787/#devices" target="_blank" rel="noopener">打开本机设备页</a>
+          <a href="https://github.com/CosmicWalter/lan-camera-home#添加-onvif-摄像头">查看接入步骤</a>
+        </div>
+        <div id="devices-unpaired" class="device-section" hidden>
+          <h2>配对本机桥接</h2>
+          <p>使用桥接终端显示的配对码。</p>
+          <button class="primary" type="button" data-connect><span data-icon="link"></span>立即配对</button>
+        </div>
+        <div id="devices-local" hidden>
+          <div class="device-setup-grid">
+            <section class="device-section">
+              <h2>搜索局域网</h2>
+              <p>确认电脑和摄像头位于同一网段，并已在摄像头设置中启用 ONVIF。</p>
+              <button id="scan-devices" class="secondary" type="button"><span data-icon="search"></span>搜索摄像头</button>
+              <p id="scan-status" role="status"></p>
+              <div id="device-results"></div>
+            </section>
+            <section class="device-section">
+              <h2>读取码流</h2>
+              <form id="onvif-form">
+                <label>ONVIF 设备地址<input id="onvif-endpoint" required maxlength="2048" placeholder="例如 192.168.1.50" spellcheck="false" autocapitalize="none"></label>
+                <label>ONVIF 用户名<input id="onvif-username" maxlength="256" spellcheck="false" autocapitalize="none"></label>
+                <label>ONVIF 密码<input id="onvif-password" type="password" maxlength="512" autocomplete="off"></label>
+                <button class="primary" type="submit"><span data-icon="link"></span>读取码流</button>
+              </form>
+              <p id="onvif-status" role="status"></p>
+            </section>
+          </div>
+          <section id="profile-panel" class="device-section" hidden aria-labelledby="profile-heading">
+            <h2 id="profile-heading">可用码流</h2>
+            <p id="onvif-model"></p>
+            <p>建议先选 H.264。复制 RTSP 地址，在 Moonfire 的摄像头设置中填写，并在对应码流启用录像。</p>
+            <div id="profile-results"></div>
+            <a href="https://github.com/CosmicWalter/lan-camera-home#添加-onvif-摄像头" target="_blank" rel="noopener">查看 Moonfire 配置步骤</a>
+          </section>
+        </div>
       </section>
     </main>
   </div>

@@ -63,6 +63,12 @@ func randomBytes() []byte {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "onvif-events" {
+		if err := runONVIFEvents(os.Args[2:]); err != nil && !errors.Is(err, flag.ErrHelp) {
+			log.Fatal(err)
+		}
+		return
+	}
 	port := flag.Int("port", 8787, "本机桥接端口")
 	upstream := flag.String("moonfire", "127.0.0.1:8080", "Moonfire 本机地址，或 unix:/path/to/socket")
 	cookieFile := flag.String("cookie-file", "", "可选，Moonfire CLI 生成的 curl cookie jar")
@@ -184,7 +190,7 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("X-Frame-Options", "DENY")
-	if r.Host != b.host {
+	if r.Host != b.host && !(b.host == "127.0.0.1:80" && r.Host == "127.0.0.1") {
 		http.Error(w, "无效的本机地址", http.StatusForbidden)
 		return
 	}
@@ -196,12 +202,17 @@ func (b *bridge) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Vary", "Origin")
 	origin := r.Header.Get("Origin")
-	if origin != "" && origin != "http://"+b.host && origin != pagesOrigin {
+	localOrigin := "http://" + strings.TrimSuffix(b.host, ":80")
+	if origin != "" && origin != localOrigin && origin != pagesOrigin {
 		http.Error(w, "来源不受信任", http.StatusForbidden)
 		return
 	}
 	if origin != "" {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
+	}
+	if strings.HasPrefix(r.URL.Path, "/api/onvif/") {
+		b.onvif(w, r, origin, localOrigin)
+		return
 	}
 	if r.Method == http.MethodOptions && origin != "" && r.Header.Get("Access-Control-Request-Method") == "GET" {
 		w.Header().Set("Access-Control-Allow-Methods", "GET")
