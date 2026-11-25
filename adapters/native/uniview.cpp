@@ -1,4 +1,4 @@
-#include "common.h"
+#include "video.h"
 
 #include <NetDEVSDK.h>
 
@@ -28,8 +28,17 @@ void STDCALL exception_message(LPVOID, INT32 type, LPVOID, LPVOID opaque, LPNETD
     }
 }
 
+void STDCALL video_data(LPVOID, const NETDEV_PARSE_VIDEO_DATA_S* frame, LPVOID opaque) {
+    if (frame != nullptr && frame->dwVideoCodeFormat == NETDEV_VIDEO_CODE_H264 && frame->dwDataLen > 0) {
+        static_cast<jiajing::VideoBuffer*>(opaque)->push(frame->pucData, frame->dwDataLen);
+    }
+}
+
 struct SDK {
     ~SDK() {
+        if (preview != nullptr) {
+            NETDEV_StopRealPlay(preview);
+        }
         if (listening) {
             NETDEV_Unsubscribe(user);
         }
@@ -39,6 +48,7 @@ struct SDK {
         NETDEV_Cleanup();
     }
     LPVOID user = nullptr;
+    LPVOID preview = nullptr;
     bool listening = false;
 };
 
@@ -49,16 +59,18 @@ int error() {
 }  // namespace
 
 int main(int argc, char** argv) {
-    const bool self_test = argc == 2 && std::strcmp(argv[1], "--self-test") == 0;
-    if (argc != 1 && !self_test) {
+    const auto mode = jiajing::mode(argc, argv);
+    jiajing::VideoOutput output;
+    if (mode == jiajing::Mode::invalid || (jiajing::video_mode(mode) && !output.open())) {
         return 2;
     }
     jiajing::Events events;
+    jiajing::VideoBuffer video;
     if (!NETDEV_Init()) {
         return error();
     }
     SDK sdk;
-    if (self_test) {
+    if (mode == jiajing::Mode::self_test) {
         std::printf("Uniview NetDEVSDK version 0x%x\n", static_cast<unsigned int>(NETDEV_GetSDKVersion()));
         return 0;
     }
@@ -81,6 +93,19 @@ int main(int argc, char** argv) {
     sdk.user = NETDEV_Login_V30(&login, &info);
     if (sdk.user == nullptr) {
         return error();
+    }
+    if (jiajing::video_mode(mode)) {
+        NETDEV_PREVIEWINFO_S request{};
+        request.dwChannelID = config.channel;
+        request.dwStreamType = mode == jiajing::Mode::sub_stream ? NETDEV_LIVE_STREAM_INDEX_AUX : NETDEV_LIVE_STREAM_INDEX_MAIN;
+        request.dwLinkMode = NETDEV_TRANSPROTOCAL_RTPTCP;
+        request.dwStreamMode = NETDEV_STREAM_MODE_VIDEO;
+        sdk.preview = NETDEV_RealPlay(sdk.user, &request, nullptr, nullptr);
+        if (sdk.preview == nullptr ||
+            !NETDEV_SetPlayParseCB(sdk.preview, video_data, FALSE, &video)) {
+            return error();
+        }
+        return video.write(output.file, "h264", events.disconnected);
     }
     if (!NETDEV_SetAlarmCallBack(sdk.user, alarm_message, &events) ||
         !NETDEV_Subscribe(sdk.user, NETDEV_SUBSCRIBE_ALARM_TYPE_COM)) {

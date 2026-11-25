@@ -27,13 +27,17 @@ func (err sdkOperationError) Error() string {
 	return fmt.Sprintf("原生 SDK 操作失败（错误码 %d）", uint32(err))
 }
 
+type sdkLogin struct {
+	Host       string
+	Port       uint16
+	Username   string
+	Password   string
+	Channel    int
+	DeviceKind string
+}
+
 type sdkConfig struct {
-	Host              string
-	Port              uint16
-	Username          string
-	Password          string
-	Channel           int
-	DeviceKind        string
+	sdkLogin
 	SignalID          int32
 	StillState        uint8
 	MotionState       uint8
@@ -41,6 +45,17 @@ type sdkConfig struct {
 }
 
 func (c *sdkConfig) validate() error {
+	if err := c.sdkLogin.validate(); err != nil {
+		return err
+	}
+	if c.SignalID < 1 || c.StillState < 1 || c.StillState > 15 || c.MotionState < 1 ||
+		c.MotionState > 15 || c.StillState == c.MotionState || c.MotionHoldSeconds < 1 || c.MotionHoldSeconds > 120 {
+		return errors.New("请检查信号 ID、状态值和移动保持秒数")
+	}
+	return nil
+}
+
+func (c *sdkLogin) validate() error {
 	ip, err := netip.ParseAddr(c.Host)
 	if err != nil || !localIP(ip.Unmap()) || ip.Zone() != "" || c.Port == 0 || c.Channel < 1 || c.Channel > 4096 {
 		return errors.New("请填写本地设备 IP、SDK 端口和通道号")
@@ -52,15 +67,11 @@ func (c *sdkConfig) validate() error {
 	if c.DeviceKind != "ipc" && c.DeviceKind != "nvr" {
 		return errors.New("设备类型须为 ipc 或 nvr")
 	}
-	if c.SignalID < 1 || c.StillState < 1 || c.StillState > 15 || c.MotionState < 1 ||
-		c.MotionState > 15 || c.StillState == c.MotionState || c.MotionHoldSeconds < 1 || c.MotionHoldSeconds > 120 {
-		return errors.New("请检查信号 ID、状态值和移动保持秒数")
-	}
 	c.Host = ip.Unmap().String()
 	return nil
 }
 
-func (c sdkConfig) adapterInput() string {
+func (c sdkLogin) adapterInput() string {
 	return strings.Join([]string{
 		"JIAJING/1", c.Host, strconv.Itoa(int(c.Port)), c.Username, c.Password,
 		strconv.Itoa(c.Channel), c.DeviceKind, "",
@@ -196,7 +207,7 @@ func runSDKEvents(args []string) error {
 	if err != nil {
 		return errors.New("请用 -config 指定仅当前用户可读取的 SDK 配置文件")
 	}
-	config := sdkConfig{MotionState: 2, StillState: 1, MotionHoldSeconds: 12, DeviceKind: "ipc"}
+	config := sdkConfig{MotionState: 2, StillState: 1, MotionHoldSeconds: 12, sdkLogin: sdkLogin{DeviceKind: "ipc"}}
 	decoder := json.NewDecoder(strings.NewReader(contents))
 	decoder.DisallowUnknownFields()
 	if decoder.Decode(&config) != nil {

@@ -4,6 +4,7 @@
 /build-native/
 /vendor-sdk/
 /sdk-motion*.json
+/sdk-stream*.json
 /camera-motion*.json
 /*.cookies
 .DS_Store

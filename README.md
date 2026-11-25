@@ -62,7 +62,7 @@ ssh -N -o ExitOnForwardFailure -L 127.0.0.1:8080:/var/lib/moonfire-nvr/jiajing.s
 ### 接收告警
 
 - 告警页面读取 Moonfire Signals，将进入移动状态的事件显示为告警。已配对的实时预览和告警页每 30 秒刷新。可用 `onvif-events` 从 ONVIF PullPoint 订阅设备移动事件，或继续使用已有的 Moonfire Signals 事件源。 [ONVIF 告警接入步骤](docs/onvif-alerts.md)
-- 家镜提供海康 HCNetSDK、大华 NetSDK、宇视 NetDEVSDK 的本地移动告警适配器。需按厂商许可自行安装 SDK，再编译所需适配器。预览、录像、回放和下载继续由 Moonfire 处理。 [品牌 SDK 接入](docs/vendor-sdk.md)
+- 家镜提供海康 HCNetSDK、大华 NetSDK、宇视 NetDEVSDK 的本地取流和移动告警适配器。需按厂商许可自行安装 SDK，再编译所需适配器。SDK 取得的视频可送入 Moonfire，实现预览、录像、回放和下载。 [品牌 SDK 接入](docs/vendor-sdk.md)
 
 ## 浏览器和本地访问
 

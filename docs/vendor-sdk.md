@@ -1,6 +1,6 @@
-# 海康、大华、宇视原生 SDK 告警
+# 海康、大华、宇视原生 SDK 接入
 
-已有 RTSP 录像的设备可以选用原生 SDK 接收移动告警。家镜将设备告警写入 Moonfire Signals，再在控制台告警页显示。每台设备可在 ONVIF 告警和品牌 SDK 告警中选择一种事件源。
+家镜桥接 v0.4.0 可以通过三家的原生 SDK 读取实时视频和移动告警。视频以本机 RTSP 送入 Moonfire，SDK 告警写入 Moonfire Signals。已有 RTSP 录像的设备也可以单独启用 SDK 告警。
 
 | 品牌 | 接口 | 转发的事件 |
 | --- | --- | --- |
@@ -56,3 +56,46 @@ cmake --build build-native
 ```
 
 打开家镜的「告警事件」页并触发一次移动检测。桥接通过已配置的 RTSP 和 Moonfire 继续提供实时预览、录像、回放与下载。
+
+## 用原生 SDK 取流
+
+在运行 Moonfire 和 SDK 适配器的 Linux 主机安装 FFmpeg 和 MediaMTX。将摄像头码流设为 H.264。海康使用实时预览回调中的 PS 数据，大华请求 PS 格式，宇视使用 SDK 拼帧后的 H.264 视频回调。转发保留视频，宇视一路的时间戳按配置帧率生成。家镜回放和下载的是 Moonfire 收到视频后生成的本地录像。
+
+启动 MediaMTX，使推流和录制进程在本机交换视频。以下配置使用名为 `sdk_front` 的路径，多台摄像头请为每路视频使用不同的路径。
+
+```yaml
+rtsp: true
+rtspAddress: 127.0.0.1:8554
+rtspTransports: [tcp]
+rtmp: false
+hls: false
+webrtc: false
+srt: false
+moq: false
+paths:
+  sdk_front:
+    source: publisher
+```
+
+将下列配置保存为权限为 `0600` 的文件，例如 `sdk-stream.json`。根据摄像头设置 `port`、`channel` 和 `deviceKind`。选择 `stream` 为 `main`（主码流）或 `sub`（子码流），并将 `fps` 设置为摄像头实际帧率。
+
+```json
+{
+  "host": "192.168.1.50",
+  "port": 8000,
+  "username": "device-viewer",
+  "password": "替换为设备密码",
+  "channel": 1,
+  "deviceKind": "ipc",
+  "stream": "main",
+  "fps": 15
+}
+```
+
+```sh
+./lan-camera-home sdk-stream -adapter ./build-native/jiajing-hikvision -config sdk-stream.json -publish rtsp://127.0.0.1:8554/sdk_front
+```
+
+在 Moonfire 的「Cameras and streams」中将本机 RTSP 地址填到对应摄像头的码流设置，传输选 TCP，给这路码流启用录像并分配存储空间。重新启动 Moonfire，再在家镜中刷新预览。SDK 登录仍使用配置文件中的摄像头凭据。Moonfire 读取本机转发地址，对应的账号和密码留空。
+
+如果 SDK 已登录但画面未出现，检查 MediaMTX 的地址和路径，再核对设备的码流编码。SDK 回调封装、通道编号和媒体组件支持随设备、固件及厂商包版本变化。两路码流可以分别启动转发进程。告警可使用独立的 `sdk-events` 进程。

@@ -70,6 +70,8 @@ func main() {
 			run = runONVIFEvents
 		case "sdk-events":
 			run = runSDKEvents
+		case "sdk-stream":
+			run = runSDKStream
 		}
 		if run != nil {
 			if err := run(os.Args[2:]); err != nil && !errors.Is(err, flag.ErrHelp) {

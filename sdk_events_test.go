@@ -68,8 +68,8 @@ printf 'JIAJING\t1\tDISCONNECTED\n'
 		fmt.Fprint(w, "{}")
 	})
 	configuration := sdkConfig{
-		Host: "192.168.1.50", Port: 8000, Username: "test-user", Password: " test password ",
-		Channel: 1, DeviceKind: "ipc", SignalID: 4, StillState: 1, MotionState: 2, MotionHoldSeconds: 12,
+		sdkLogin: sdkLogin{Host: "192.168.1.50", Port: 8000, Username: "test-user", Password: " test password ", Channel: 1, DeviceKind: "ipc"},
+		SignalID: 4, StillState: 1, MotionState: 2, MotionHoldSeconds: 12,
 	}
 	writer := &signalWriter{bridge: backend, config: motionConfig{SignalID: 4, MotionState: 2, StillState: 1}}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -87,8 +87,8 @@ printf 'JIAJING\t1\tDISCONNECTED\n'
 
 func TestSDKLoginRejectsUnsupportedInputs(t *testing.T) {
 	valid := sdkConfig{
-		Host: "192.168.1.50", Port: 8000, Username: "viewer", Password: "test-only",
-		Channel: 1, DeviceKind: "ipc", SignalID: 1, StillState: 1, MotionState: 2, MotionHoldSeconds: 12,
+		sdkLogin: sdkLogin{Host: "192.168.1.50", Port: 8000, Username: "viewer", Password: "test-only", Channel: 1, DeviceKind: "ipc"},
+		SignalID: 1, StillState: 1, MotionState: 2, MotionHoldSeconds: 12,
 	}
 	if err := valid.validate(); err != nil {
 		t.Fatal(err)
